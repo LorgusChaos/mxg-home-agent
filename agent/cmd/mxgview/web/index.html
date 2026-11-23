@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Инвертор Must</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #677085; --line: #e3e6ec; --accent: #2f6fde;
+  --out: rgba(220, 60, 60, 0.12); --bad: #c63b3b; --ok: #2c8a4b; --warn: #b8860b;
+  --c1: #2f6fde; --c2: #e0892f; --c3: #2c9a5a; --c4: #a64fc4; --c5: #c63b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c2028; --text: #e6e9ef; --muted: #9aa3b5; --line: #2c323d; --accent: #6b9cff;
+    --out: rgba(255, 90, 90, 0.16); --bad: #ff6b6b; --ok: #4fc27a; --warn: #e2b23c;
+    --c1: #6b9cff; --c2: #f0a04b; --c3: #4fc27a; --c4: #c27ae0; --c5: #ff6b6b;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; }
+button, select, input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 10px; }
+button { cursor: pointer; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.grp { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.sp { flex: 1; }
+#sync { color: var(--muted); font-size: 12px; }
+nav { display: flex; gap: 4px; padding: 10px 16px 0; flex-wrap: wrap; }
+nav button { border-radius: 6px 6px 0 0; border-bottom: none; }
+main { padding: 0 16px 24px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0 8px 8px 8px; padding: 12px; }
+.chart { margin-bottom: 14px; }
+.chart h3 { margin: 4px 0 2px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.card { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.card .k { color: var(--muted); font-size: 12px; }
+.card .v { font-size: 18px; font-weight: 600; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; font-size: 12px; }
+td:first-child, th:first-child { text-align: left; }
+.tw { overflow: auto; max-height: 70vh; }
+.bad { color: var(--bad); } .ok { color: var(--ok); } .warn { color: var(--warn); }
+.muted { color: var(--muted); }
+.evtext { text-align: left; white-space: normal; }
+.pager { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.u-legend { font-size: 12px; }
+.sgroup { margin: 14px 0 6px; font-weight: 600; }
+.srow { display: grid; grid-template-columns: minmax(200px, 2fr) minmax(120px, 1fr) minmax(160px, 1.3fr) auto;
+  gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.srow .note { grid-column: 1 / -1; font-size: 12px; color: var(--warn); }
+.srow .res { grid-column: 1 / -1; font-size: 12px; }
+.srow input[type=number], .srow select { width: 100%; }
+@media (max-width: 640px) { .srow { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) { header { padding: 8px; } main, nav { padding-left: 8px; padding-right: 8px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Инвертор Must PV18-3224</h1>
+  <div class="grp" id="ranges">
+    <button data-r="today" class="on">Сегодня</button>
+    <button data-r="24h">24 ч</button>
+    <button data-r="7d">7 дней</button>
+    <button data-r="30d">30 дней</button>
+  </div>
+  <div class="grp">
+    <input type="date" id="from"> — <input type="date" id="to">
+    <button id="apply">Показать</button>
+  </div>
+  <div class="sp"></div>
+  <div class="grp">
+    <label class="muted"><input type="checkbox" id="auto" checked> обновлять каждую минуту</label>
+    <button id="syncBtn" title="Забрать свежие данные с приставки">⟳ С приставки</button>
+    <span id="sync"></span>
+  </div>
+</header>
+<nav id="tabs">
+  <button data-t="charts" class="on">Графики</button>
+  <button data-t="table">Таблица</button>
+  <button data-t="summary">Сводка по дням</button>
+  <button data-t="events">События</button>
+  <button data-t="settings">Настройки</button>
+</nav>
+<main>
+  <div class="panel" id="p-charts">
+    <div class="cards" id="cards"></div>
+    <div id="charts"></div>
+    <div class="muted" id="chartNote"></div>
+  </div>
+  <div class="panel" id="p-table" hidden>
+    <div class="pager">
+      Источник: <select id="src"><option value="inv">Инвертор</option><option value="bms">BMS</option></select>
+      Шаг: <select id="step">
+        <option value="10">10 с (все записи)</option><option value="60">1 мин</option>
+        <option value="600" selected>10 мин</option><option value="3600">1 ч</option>
+      </select>
+      <span id="pageInfo" class="muted"></span>
+      <button id="prev">←</button><button id="next">→</button>
+      <button id="csv">Скачать CSV</button>
+    </div>
+    <div class="tw"><table id="tbl"></table></div>
+  </div>
+  <div class="panel" id="p-summary" hidden>
+    <div class="pager">
+      <b>Экспорт для ИИ</b> за выбранный период, шаг:
+      <select id="aiStep"><option value="600" selected>10 мин (~5 тыс. токенов/день)</option>
+        <option value="1800">30 мин</option><option value="3600">1 ч (~1 тыс. токенов/день)</option></select>
+      <button id="aiExport">Скачать архив</button>
+      <span class="muted">контекст проекта + сводка + события + агрегаты + настройки, для загрузки в чат</span>
+    </div>
+    <div class="tw"><table id="sum"></table></div>
+    <p class="muted">Энергия за день считается по счётчикам инвертора (разница первого и последнего значения дня).
+      Отключение — сетевое напряжение ниже 150 В.</p></div>
+  <div class="panel" id="p-events" hidden><div class="tw"><table id="ev"></table></div></div>
+  <div class="panel" id="p-settings" hidden>
+    <div class="pager">
+      <button id="setRefresh">⟳ Перечитать с инвертора</button>
+      <span id="setInfo" class="muted"></span>
+    </div>
+    <p class="muted">Изменение уходит на приставку, агент проверяет его по своему списку и пределам, записывает в инвертор
+      и читает обратно. О каждом изменении приходит сообщение в Telegram. Связь с приставкой медленная — ответ может
+      занять до минуты.</p>
+    <div id="setList"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const pad = (n) => String(n).padStart(2, "0");
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmtT = (t) => { const d = new Date(t * 1000); return `${ymd(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const num = (v, d = 1) => (v == null || isNaN(v)) ? "—" : Number(v).toFixed(d);
+
+let state = { range: "today", from: "", to: "", tab: "charts", xmin: null, data: null, page: 0 };
+const WORK = ["включение", "самотест", "от батареи", "с сетью", "от сети", "стоп", "заряд от сети"];
+
+const COLS = [
+  ["work_state", "Режим", (v) => v == null ? "—" : (WORK[v] || v)],
+  ["grid_v", "Сеть, В", (v) => num(v, 0)], ["out_v", "Выход, В", (v) => num(v, 0)],
+  ["batt_v", "Батарея, В", (v) => num(v, 2)], ["soc_est", "≈%", (v) => num(v, 0)],
+  ["batt_w", "Батарея, Вт", (v) => num(v, 0)], ["batt_a", "Батарея, А", (v) => num(v, 0)],
+  ["load_w", "Нагрузка, Вт", (v) => num(v, 0)], ["load_pct", "Нагрузка, %", (v) => num(v, 0)],
+  ["pv_v", "Панели, В", (v) => num(v, 1)], ["pv_w", "Панели, Вт", (v) => num(v, 0)],
+  ["grid_w", "Сеть, Вт", (v) => num(v, 0)], ["out_hz", "Гц", (v) => num(v, 2)],
+  ["temp_a", "Рад. AC °C", (v) => num(v, 0)], ["temp_b", "Трансф. °C", (v) => num(v, 0)],
+  ["temp_dc", "Рад. DC °C", (v) => num(v, 0)], ["temp_chg", "Контр. °C", (v) => num(v, 0)],
+  ["err_inv", "Ошибки инв.", (v) => v ? `<span class="bad">${v}</span>` : "0"],
+  ["warn_inv", "Предупр. инв.", (v) => v ? `<span class="warn">${v}</span>` : "0"],
+  ["err_chg", "Ошибки контр.", (v) => v ? `${v}` : "0"],
+];
+
+const BAL = ["нет", "заряд", "разряд"];
+const COLS_BMS = [
+  ["soc", "Заряд, %", (v) => num(v, 0)], ["remaining_ah", "Остаток, А·ч", (v) => num(v, 1)],
+  ["current", "Ток, А", (v) => num(v, 1)], ["power", "Мощность, Вт", (v) => num(v, 0)],
+  ["voltage", "Напряжение, В", (v) => num(v, 2)],
+  ["cell_min", "Яч. мин, В", (v) => num(v, 3)], ["cell_max", "Яч. макс, В", (v) => num(v, 3)],
+  ["cell_delta", "Δ, мВ", (v) => v == null ? "—" : num(v * 1000, 0)],
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map((k) => ["c" + k, "Я" + k, (v) => num(v, 3)]),
+  ["temp1", "T1 °C", (v) => num(v, 1)], ["temp2", "T2 °C", (v) => num(v, 1)], ["temp_mos", "MOS °C", (v) => num(v, 1)],
+  ["balancing", "Баланс.", (v) => v == null ? "—" : (BAL[Math.round(v)] || v)],
+  ["charge_on", "Ключ заряда", (v) => v == null ? "—" : (v >= 1 ? "вкл" : '<span class="bad">выкл</span>')],
+  ["discharge_on", "Ключ разряда", (v) => v == null ? "—" : (v >= 1 ? "вкл" : '<span class="bad">выкл</span>')],
+  ["errors", "Аварии", (v) => v ? `<span class="bad">${v}</span>` : "0"],
+];
+const tableCols = () => $("#src").value === "bms" ? COLS_BMS : COLS;
+
+function setRange(r) {
+  const now = new Date(), today = ymd(now);
+  const back = (days) => ymd(new Date(now.getTime() - days * 86400000));
+  state.range = r; state.xmin = null;
+  if (r === "today") { state.from = today; state.to = today; }
+  if (r === "24h") { state.from = back(1); state.to = today; state.xmin = now.getTime() / 1000 - 86400; }
+  if (r === "7d") { state.from = back(6); state.to = today; }
+  if (r === "30d") { state.from = back(29); state.to = today; }
+  $("#from").value = state.from; $("#to").value = state.to;
+  document.querySelectorAll("#ranges button").forEach((b) => b.classList.toggle("on", b.dataset.r === r));
+}
+
+async function api(path) {
+  const r = await fetch(path, { cache: "no-store" });
+  if (!r.ok) throw new Error(path + ": " + r.status);
+  return r.json();
+}
+
+// ---------- charts ----------
+let plots = [];
+function outageBands(t, grid) {
+  const bands = []; let start = null;
+  for (let i = 0; i < t.length; i++) {
+    const out = grid[i] != null && grid[i] < 150;
+    if (out && start == null) start = t[i];
+    if (!out && start != null) { bands.push([start, t[i]]); start = null; }
+  }
+  if (start != null) bands.push([start, t[t.length - 1]]);
+  return bands;
+}
+
+function makePlot(el, title, t, series, bands, axes) {
+  const width = el.clientWidth || 800;
+  const h = document.createElement("div"); h.className = "chart";
+  h.innerHTML = `<h3>${title}</h3>`; el.appendChild(h);
+  const data = [t, ...series.map((s) => s.data)];
+  const opts = {
+    width, height: 220,
+    cursor: { sync: { key: "mxg" } },
+    scales: { x: { time: true, min: state.xmin ?? undefined }, y: {}, y2: {} },
+    axes: [
+      { stroke: css("--muted"), grid: { stroke: css("--line") },
+        values: (u, splits) => {
+          const span = (u.scales.x.max - u.scales.x.min) || 0;
+          return splits.map((v) => {
+            const d = new Date(v * 1000), hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            return span > 2 * 86400 ? `${pad(d.getDate())}.${pad(d.getMonth() + 1)}` + (d.getHours() || d.getMinutes() ? " " + hm : "")
+              : span > 20 * 3600 && d.getHours() === 0 && d.getMinutes() === 0 ? `${pad(d.getDate())}.${pad(d.getMonth() + 1)}` : hm;
+          });
+        } },
+      { stroke: css("--muted"), grid: { stroke: css("--line") }, label: axes[0], size: 56 },
+      ...(axes[1] ? [{ side: 1, scale: "y2", stroke: css("--muted"), grid: { show: false }, label: axes[1], size: 50 }] : []),
+    ],
+    series: [{ value: (u, v) => v == null ? "—" : fmtT(v) },
+      ...series.map((s) => ({ label: s.label, stroke: s.raw ? s.color : css(s.color), width: 1.5, scale: s.y2 ? "y2" : "y",
+        value: (u, v) => v == null ? "—" : v.toFixed(s.dec ?? 1) }))],
+    hooks: { drawClear: [(u) => {
+      const ctx = u.ctx; ctx.save(); ctx.fillStyle = css("--out");
+      for (const [a, b] of bands) {
+        const x0 = u.valToPos(a, "x", true), x1 = u.valToPos(b, "x", true);
+        ctx.fillRect(x0, u.bbox.top, Math.max(1, x1 - x0), u.bbox.height);
+      }
+      ctx.restore();
+    }] },
+  };
+  plots.push(new uPlot(opts, data, h));
+}
+
+function card(k, v, cls = "") { return `<div class="card"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`; }
+
+function renderCharts(d, bm) {
+  plots.forEach((p) => p.destroy()); plots = [];
+  const el = $("#charts"); el.innerHTML = "";
+  const t = d.t, c = d.cols;
+  if (!t || !t.length) { el.innerHTML = '<p class="muted">Нет данных за выбранный период.</p>'; $("#cards").innerHTML = ""; return; }
+  const i = t.length - 1, L = (k) => c[k] ? c[k][i] : null;
+  const gridOn = L("grid_v") != null && L("grid_v") >= 150;
+  const bands = outageBands(t, c.grid_v || []);
+  const outMin = bands.reduce((s, [a, b]) => s + (b - a), 0) / 60;
+  const hasBms = bm && bm.t && bm.t.length;
+  const bi = hasBms ? bm.t.length - 1 : -1, B = (k) => hasBms && bm.cols[k] ? bm.cols[k][bi] : null;
+  const battCard = hasBms
+    ? card("Батарея (BMS)", `${num(B("soc"), 0)}% · ${num(B("remaining_ah"), 0)} А·ч · ${B("current") > 0 ? "+" : ""}${num(B("current"), 1)} А`,
+        B("soc") != null && B("soc") <= 20 ? "bad" : "")
+    : card("Батарея", `${num(L("batt_v"), 2)} В · ≈${num(L("soc_est"), 0)}%`);
+  $("#cards").innerHTML =
+    card("Сеть", gridOn ? `есть, ${num(L("grid_v"), 0)} В` : "нет", gridOn ? "ok" : "bad") +
+    card("Режим", WORK[L("work_state")] ?? "—") +
+    battCard +
+    (hasBms ? card("Ячейки", `${num(B("cell_min"), 3)}–${num(B("cell_max"), 3)} В · Δ${num(B("cell_delta") * 1000, 0)} мВ`,
+      B("cell_delta") >= 0.05 ? "warn" : "") : "") +
+    card("Нагрузка", `${num(L("load_w"), 0)} Вт`) +
+    card("Панели", `${num(L("pv_w"), 0)} Вт`) +
+    card("Без света за период", `${Math.round(outMin)} мин`, outMin > 0 ? "warn" : "") +
+    card("Обновлено", fmtT(t[i]).slice(11));
+  if (hasBms) {
+    makePlot(el, "Батарея (BMS): заряд и ток", bm.t, [
+      { label: "Ток, А (+ заряд)", data: bm.cols.current, color: "--c1", dec: 1 },
+      { label: "Заряд, %", data: bm.cols.soc, color: "--c3", y2: true, dec: 0 }], bands, ["А", "%"]);
+    const cells = [];
+    for (let k = 1; k <= 8; k++) {
+      const v = bm.cols["c" + k];
+      if (v && v.some((x) => x != null && x > 0)) cells.push({ label: "Я" + k, data: v, color: `hsl(${(k - 1) * 45}, 65%, 50%)`, dec: 3, raw: true });
+    }
+    cells.push({ label: "Δ, мВ", data: (bm.cols.cell_delta || []).map((x) => x == null ? null : x * 1000), color: "--c5", y2: true, dec: 0 });
+    makePlot(el, "Ячейки (BMS)", bm.t, cells, bands, ["В", "мВ"]);
+  }
+  makePlot(el, "Батарея (инвертор)", t, [
+    { label: "Напряжение, В", data: c.batt_v, color: "--c1", dec: 2 },
+    { label: "≈ заряд по напряжению, %", data: c.soc_est, color: "--c3", y2: true, dec: 0 }], bands, ["В", "%"]);
+  makePlot(el, "Мощности", t, [
+    { label: "Нагрузка", data: c.load_w, color: "--c2", dec: 0 },
+    { label: "Панели", data: c.pv_w, color: "--c3", dec: 0 },
+    { label: "Батарея", data: c.batt_w, color: "--c1", dec: 0 },
+    { label: "Сеть", data: c.grid_w, color: "--c4", dec: 0 }], bands, ["Вт"]);
+  makePlot(el, "Напряжение сети и выхода", t, [
+    { label: "Сеть, В", data: c.grid_v, color: "--c5", dec: 0 },
+    { label: "Выход, В", data: c.out_v, color: "--c1", dec: 0 }], bands, ["В"]);
+  makePlot(el, "Температуры", t, [
+    { label: "Радиатор AC", data: c.temp_a, color: "--c2", dec: 0 },
+    { label: "Трансформатор", data: c.temp_b, color: "--c5", dec: 0 },
+    { label: "Радиатор DC", data: c.temp_dc, color: "--c4", dec: 0 },
+    { label: "Контроллер", data: c.temp_chg, color: "--c3", dec: 0 }], bands, ["°C"]);
+  $("#chartNote").textContent = `Точка = ${d.step} с (среднее; для сети — минимум, чтобы короткие отключения были видны). ` +
+    "Красные полосы — отключения света. Процент заряда — грубая оценка по напряжению.";
+}
+
+// ---------- table ----------
+const PAGE = 500;
+let tableData = null;
+async function loadTable() {
+  const step = $("#step").value, ep = $("#src").value === "bms" ? "bms" : "series";
+  tableData = await api(`/api/${ep}?from=${state.from}&to=${state.to}&step=${step}`);
+  state.page = 0; renderTable();
+}
+function tableRows() {
+  if (!tableData || !tableData.t) return [];
+  const idx = [];
+  for (let i = tableData.t.length - 1; i >= 0; i--) {
+    if (state.xmin && tableData.t[i] < state.xmin) continue;
+    idx.push(i);
+  }
+  return idx;
+}
+function renderTable() {
+  const idx = tableRows(), pages = Math.max(1, Math.ceil(idx.length / PAGE));
+  state.page = Math.min(state.page, pages - 1);
+  const part = idx.slice(state.page * PAGE, (state.page + 1) * PAGE);
+  $("#pageInfo").textContent = `${idx.length} строк, стр. ${state.page + 1} из ${pages}`;
+  const c = tableData ? tableData.cols : {}, cols = tableCols();
+  let h = "<thead><tr><th>Время</th>" + cols.map(([, n]) => `<th>${n}</th>`).join("") + "</tr></thead><tbody>";
+  for (const i of part) {
+    const g = c.grid_v ? c.grid_v[i] : null;
+    h += `<tr${g != null && g < 150 ? ' class="muted"' : ""}><td>${fmtT(tableData.t[i])}</td>` +
+      cols.map(([k, , f]) => `<td>${f(c[k] ? c[k][i] : null)}</td>`).join("") + "</tr>";
+  }
+  $("#tbl").innerHTML = h + "</tbody>";
+}
+function downloadCSV() {
+  const idx = tableRows().reverse(), c = tableData.cols, cols = tableCols();
+  let s = "time," + cols.map(([k]) => k).join(",") + "\n";
+  for (const i of idx) s += fmtT(tableData.t[i]) + "," + cols.map(([k]) => c[k] && c[k][i] != null ? c[k][i] : "").join(",") + "\n";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([s], { type: "text/csv" }));
+  a.download = `${$("#src").value === "bms" ? "bms" : "must"}_${state.from}_${state.to}_${$("#step").value}s.csv`; a.click();
+}
+
+// ---------- summary / events ----------
+async function loadSummary() {
+  const rows = await api(`/api/summary?from=${state.from}&to=${state.to}`);
+  let h = "<thead><tr><th>День</th><th>Без света, мин</th><th>Отключений</th><th>Заряд BMS мин–макс, %</th>" +
+    "<th>Разряд / заряд BMS, А·ч</th><th>Δ ячеек макс, мВ</th><th>Батарея мин–макс, В</th>" +
+    "<th>Нагрузка ср/макс, Вт</th><th>Панели макс, Вт</th><th>Темп. макс, °C</th>" +
+    "<th>Нагрузка, кВт·ч</th><th>Из сети, кВт·ч</th><th>Панели, кВт·ч</th><th>Разряд бат., кВт·ч</th>" +
+    "<th>Заряд от сети, кВт·ч</th><th>Записей</th></tr></thead><tbody>";
+  for (const r of (rows || []).slice().reverse()) {
+    h += `<tr><td>${r.day}</td><td class="${r.outage_min > 0 ? "warn" : ""}">${r.outage_min}</td><td>${r.outages}</td>` +
+      `<td>${num(r.soc_min, 0)} – ${num(r.soc_max, 0)}</td><td>${num(r.ah_out, 1)} / ${num(r.ah_in, 1)}</td>` +
+      `<td>${r.delta_max == null ? "—" : num(r.delta_max * 1000, 0)}</td>` +
+      `<td>${num(r.batt_min, 2)} – ${num(r.batt_max, 2)}</td><td>${num(r.load_avg, 0)} / ${num(r.load_max, 0)}</td>` +
+      `<td>${num(r.pv_max, 0)}</td><td>${num(r.temp_max, 0)}</td><td>${num(r.e_load)}</td><td>${num(r.e_buy)}</td>` +
+      `<td>${num(r.e_pv)}</td><td>${num(r.e_discharge)}</td><td>${num(r.e_grid_charge)}</td><td>${r.rows}</td></tr>`;
+  }
+  $("#sum").innerHTML = h + "</tbody>";
+}
+async function loadEvents() {
+  const rows = await api(`/api/events?from=${state.from}&to=${state.to}`);
+  const esc = (s) => s.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+  let h = "<thead><tr><th>Время</th><th>Тип</th><th>Уведомление</th><th class='evtext'>Текст</th></tr></thead><tbody>";
+  for (const e of (rows || []).slice().reverse())
+    h += `<tr><td>${e.time}</td><td>${e.kind}</td><td>${e.notified ? "да" : "нет"}</td><td class="evtext">${esc(e.text)}</td></tr>`;
+  if (!rows || !rows.length) h += '<tr><td colspan="4" class="muted">Событий за период нет.</td></tr>';
+  $("#ev").innerHTML = h + "</tbody>";
+}
+
+// ---------- settings ----------
+const post = (path, body) => fetch(path, { method: "POST", headers: { "X-Mxg": "1", "Content-Type": "application/json" },
+  body: body ? JSON.stringify(body) : undefined }).then((r) => r.json());
+let settingsBusy = false;
+function fmtSetting(d, v) {
+  if (v == null) return "—";
+  if (d.kind === "select") return d.options[v] || `код ${v}`;
+  if (d.kind === "switch" || d.kind === "bit") return v ? "вкл" : "выкл";
+  return `${Number(v).toFixed(d.coeff && d.coeff < 1 ? 1 : 0)} ${d.unit || ""}`;
+}
+function controlFor(d, v) {
+  const id = `set-${d.key}`;
+  if (d.kind === "select")
+    return `<select id="${id}">` + d.options.map((o, i) => o ? `<option value="${i}"${i === v ? " selected" : ""}>${o}</option>` : "").join("") + "</select>";
+  if (d.kind === "switch" || d.kind === "bit")
+    return `<label><input type="checkbox" id="${id}"${v ? " checked" : ""}> включено</label>`;
+  // text + inputmode: accepts both "27,4" and "27.4" regardless of the browser locale
+  return `<input type="text" inputmode="decimal" id="${id}" value="${v ?? ""}" style="width:7em"> <span class="muted">${d.min}…${d.max} ${d.unit || ""}</span>`;
+}
+function readControl(d) {
+  const el = document.getElementById(`set-${d.key}`);
+  if (d.kind === "switch" || d.kind === "bit") return el.checked ? 1 : 0;
+  const s = String(el.value).trim().replace(",", ".");
+  return s === "" ? NaN : Number(s);
+}
+// rows the user has touched are never re-rendered by the auto refresh
+const dirty = new Set();
+document.addEventListener("input", (e) => { const r = e.target.closest && e.target.closest(".srow"); if (r) dirty.add(r.dataset.key); });
+document.addEventListener("change", (e) => { const r = e.target.closest && e.target.closest(".srow"); if (r) dirty.add(r.dataset.key); });
+async function loadSettings(force) {
+  if (!force && dirty.size) return; // keep what the user is typing
+  if (force) dirty.clear();
+  const s = await api("/api/settings");
+  $("#setInfo").textContent = s.time ? `считано: ${s.time}` : (s.error || "");
+  const vals = s.values || {};
+  let h = "", group = "";
+  for (const d of s.defs) {
+    if (d.group !== group) { group = d.group; h += `<div class="sgroup">${group}</div>`; }
+    const v = vals[d.key];
+    h += `<div class="srow" data-key="${d.key}"><div>${d.name}</div><div><b>${fmtSetting(d, v)}</b></div>` +
+      `<div>${controlFor(d, v)}</div><div><button class="apply">Применить</button></div>` +
+      (d.note ? `<div class="note">⚠ ${d.note}</div>` : "") + `<div class="res"></div></div>`;
+  }
+  $("#setList").innerHTML = h;
+  for (const row of document.querySelectorAll(".srow")) {
+    const d = s.defs.find((x) => x.key === row.dataset.key);
+    row.querySelector(".apply").onclick = () => applySetting(d, vals[d.key], row);
+  }
+}
+async function applySetting(d, cur, row) {
+  if (settingsBusy) { const r = row.querySelector(".res"); r.className = "res warn"; r.textContent = "Подождите, предыдущая команда ещё выполняется."; return; }
+  const v = readControl(d);
+  const res0 = row.querySelector(".res");
+  if (Number.isNaN(v)) { res0.className = "res bad"; res0.textContent = "Не понял число. Пример: 27.4 или 27,4"; return; }
+  if (cur != null && Math.abs(v - cur) < 1e-9) { res0.className = "res muted"; res0.textContent = "Значение не изменилось — сначала введите новое."; return; }
+  if (d.kind === "number" && (v < d.min || v > d.max)) { res0.className = "res bad"; res0.textContent = `Допустимо ${d.min}…${d.max} ${d.unit || ""}`; return; }
+  // inline confirmation: window.confirm() is silently refused in some embedded browsers
+  res0.className = "res";
+  res0.innerHTML = `Изменить: <b>${fmtSetting(d, cur)}</b> → <b>${fmtSetting(d, v)}</b>?` +
+    (d.note ? ` <span class="warn">⚠ ${d.note}</span>` : "") +
+    ` <button class="yes">Подтвердить</button> <button class="no">Отмена</button>`;
+  const ok = await new Promise((resolve) => {
+    res0.querySelector(".yes").onclick = () => resolve(true);
+    res0.querySelector(".no").onclick = () => resolve(false);
+  });
+  if (!ok) { res0.className = "res muted"; res0.textContent = "Отменено."; return; }
+  settingsBusy = true;
+  const res = row.querySelector(".res");
+  res.className = "res muted"; res.textContent = "Отправляю на приставку…";
+  try {
+    const r = await post("/api/settings/set", { key: d.key, value: v });
+    if (r.ok) { dirty.delete(d.key); await loadSettings(true); const nr = document.querySelector(`.srow[data-key="${d.key}"] .res`); if (nr) { nr.className = "res ok"; nr.textContent = r.text || "Готово."; } }
+    else { res.className = "res bad"; res.textContent = "Ошибка: " + (r.error || "неизвестно"); }
+  } catch (e) { res.className = "res bad"; res.textContent = "Ошибка: " + e; }
+  settingsBusy = false;
+}
+$("#setRefresh").onclick = async () => {
+  if (settingsBusy) return;
+  settingsBusy = true; $("#setInfo").textContent = "читаю с инвертора…";
+  try { const r = await post("/api/settings/refresh"); if (!r.ok) $("#setInfo").textContent = "Ошибка: " + (r.error || ""); else await loadSettings(true); }
+  catch (e) { $("#setInfo").textContent = "Ошибка: " + e; }
+  settingsBusy = false;
+};
+
+// ---------- glue ----------
+async function refresh() {
+  try {
+    if (state.tab === "charts") {
+      const [d, b] = await Promise.all([api(`/api/series?from=${state.from}&to=${state.to}`),
+        api(`/api/bms?from=${state.from}&to=${state.to}`).catch(() => null)]);
+      renderCharts(d, b);
+    }
+    if (state.tab === "table") await loadTable();
+    if (state.tab === "summary") await loadSummary();
+    if (state.tab === "events") await loadEvents();
+    if (state.tab === "settings" && !settingsBusy) await loadSettings();
+  } catch (e) { console.error(e); }
+  try {
+    const s = await api("/api/status");
+    $("#sync").textContent = !s.sync ? "синхронизация выключена" :
+      s.running ? "синхронизация…" : `синхр. ${s.last || "—"}: ${s.msg || ""}`;
+  } catch (e) { $("#sync").textContent = "сервер не отвечает"; }
+}
+
+document.querySelectorAll("#ranges button").forEach((b) => b.onclick = () => { setRange(b.dataset.r); refresh(); });
+$("#apply").onclick = () => {
+  state.from = $("#from").value; state.to = $("#to").value; state.xmin = null; state.range = "custom";
+  document.querySelectorAll("#ranges button").forEach((b) => b.classList.remove("on")); refresh();
+};
+document.querySelectorAll("#tabs button").forEach((b) => b.onclick = () => {
+  state.tab = b.dataset.t;
+  document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x === b));
+  ["charts", "table", "summary", "events", "settings"].forEach((t) => $("#p-" + t).hidden = t !== state.tab);
+  refresh();
+});
+$("#step").onchange = loadTable;
+$("#src").onchange = loadTable;
+$("#aiExport").onclick = () => {
+  const a = document.createElement("a");
+  a.href = `/api/export?from=${state.from}&to=${state.to}&step=${$("#aiStep").value}`;
+  a.click();
+};
+$("#prev").onclick = () => { state.page = Math.max(0, state.page - 1); renderTable(); };
+$("#next").onclick = () => { state.page++; renderTable(); };
+$("#csv").onclick = downloadCSV;
+$("#syncBtn").onclick = async () => { await fetch("/api/sync", { method: "POST", headers: { "X-Mxg": "1" } }); $("#sync").textContent = "синхронизация…"; setTimeout(refresh, 15000); };
+window.addEventListener("resize", () => plots.forEach((p) => p.setSize({ width: p.root.parentElement.clientWidth, height: 220 })));
+setInterval(() => { if ($("#auto").checked) { if (state.range !== "custom") setRange(state.range); refresh(); } }, 60000);
+setRange("today"); refresh();
+</script>
+</body>
+</html>

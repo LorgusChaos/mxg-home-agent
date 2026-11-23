@@ -1,0 +1,6 @@
+#!/system/bin/sh
+# Autostart of the mxg agent. SuperSU's daemonsu runs every file in /system/su.d at boot, one after another,
+# so start in the background and return at once. The agent itself lives in /data/mxg.
+[ -x /data/mxg/start.sh ] || [ -f /data/mxg/start.sh ] || exit 0
+sh /data/mxg/start.sh </dev/null >/dev/null 2>&1 &
+exit 0

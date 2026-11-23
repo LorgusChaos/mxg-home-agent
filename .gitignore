@@ -1,0 +1,22 @@
+# build output
+agent/build/
+bmsbridge/build/
+*.apk
+*.exe
+
+# secrets and local settings — never commit
+*.keystore
+*.jks
+keystore.pass
+config.json
+token.txt
+box.txt
+
+# your data copied from the box by the viewer
+data/
+
+# editor / OS noise
+Thumbs.db
+.DS_Store
+*.tmp
+*.part
